@@ -8,12 +8,21 @@
     "start": "next start"
   },
   "dependencies": {
-    "next": "14.2.3",
-    "react": "^18",
-    "react-dom": "^18",
-    "peerjs": "^1.5.2",
+    "clsx": "^2.1.1",
+    "framer-motion": "^13.4.6",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.395.0",
-    "recharts": "^2.12.7"
+    "maplibre-gl": "^6.11.2",
+    "next": "14.2.3",
+    "peerjs": "^1.5.2",
+    "react": "^18",
+    "react-dom": "^18",
+    "recharts": "^2.12.7",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3"
   }
 }
