@@ -1,5 +1,5 @@
 {
-  "name": "sage-parent-dashboard",
+  "name": "find-my-kid-dashboard",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,11 +8,12 @@
     "start": "next start"
   },
   "dependencies": {
-    "html5-qrcode": "^2.3.8",
-    "lucide-react": "^1.49.0",
     "next": "14.2.3",
-    "peerjs": "^1.5.5",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "peerjs": "^1.5.2",
+    "html5-qrcode": "^2.3.8",
+    "lucide-react": "^0.395.0",
+    "leaflet": "^1.9.4"
   }
 }
