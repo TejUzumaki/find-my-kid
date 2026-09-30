@@ -2,7 +2,6 @@
 import { useEffect, useState, useRef } from "react";
 import Peer from "peerjs";
 import { Html5Qrcode } from "html5-qrcode";
-import L from "leaflet";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Camera, Upload, Link2, Wifi, WifiOff, MapPin, Clock, Smartphone, Unlink, Bug } from "lucide-react";
 
