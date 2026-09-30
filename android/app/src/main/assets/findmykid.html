@@ -116,16 +116,14 @@
 
             peer.on('open', function(id) {
                 addDebugLog("PeerJS open. ID: " + id);
-                localStorage.setItem("fmk_child_peer_id", id); // Save ID
+                localStorage.setItem("fmk_child_peer_id", id);
                 
-                if (!savedPeerId) {
-                    new QRCode(document.getElementById("qrcode"), { text: id, width: 160, height: 160 });
-                    const shortCode = Math.random().toString(36).substring(2, 5).toUpperCase() + "-" + Math.random().toString(36).substring(2, 5).toUpperCase();
-                    document.getElementById("pairing-code").innerText = shortCode;
-                    if (window.AndroidBridge) window.AndroidBridge.registerCode(shortCode, id);
-                } else {
-                    addDebugLog("Reusing saved Peer ID.");
-                }
+                // ALWAYS generate QR code and text code
+                new QRCode(document.getElementById("qrcode"), { text: id, width: 160, height: 160 });
+                const shortCode = Math.random().toString(36).substring(2, 5).toUpperCase() + "-" + Math.random().toString(36).substring(2, 5).toUpperCase();
+                document.getElementById("pairing-code").innerText = shortCode;
+                if (window.AndroidBridge) window.AndroidBridge.registerCode(shortCode, id);
+                addDebugLog("QR Code & Text Code generated.");
             });
 
             peer.on('connection', function(connection) {
