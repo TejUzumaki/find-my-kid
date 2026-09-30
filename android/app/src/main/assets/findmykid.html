@@ -9,30 +9,34 @@
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        :root { --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #f8fafc; --muted: #94a3b8; --accent: #3b82f6; --danger: #ef4444; --success: #10b981; }
+        :root { --bg: #020617; --card: #0f172a; --border: #334155; --text: #f8fafc; --muted: #64748b; --accent: #3b82f6; --danger: #ef4444; --success: #10b981; }
         body { font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; background: var(--bg); color: var(--text); text-align: center; padding: 20px; box-sizing: border-box; }
-        .card { background: var(--card); padding: 24px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); width: 100%; max-width: 400px; margin-bottom: 16px; border: 1px solid var(--border); box-sizing: border-box; }
+        .card { background: var(--card); padding: 24px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 100%; max-width: 400px; margin-bottom: 16px; border: 1px solid var(--border); box-sizing: border-box; }
         #qrcode img, #qrcode canvas { border: 8px solid var(--card); border-radius: 8px; }
-        h1 { font-size: 24px; margin-bottom: 8px; color: var(--text); }
-        h2 { font-size: 18px; margin: 0 0 12px 0; color: var(--text); display: flex; align-items: center; justify-content: center; gap: 8px; }
+        h1 { font-size: 28px; margin-bottom: 8px; color: var(--text); font-weight: 800; }
+        h2 { font-size: 20px; margin: 0 0 16px 0; color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         p { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
         #status { font-weight: bold; color: var(--success); display: none; align-items: center; gap: 8px; margin-top: 16px; }
-        #pairing-code { font-size: 32px; font-weight: bold; letter-spacing: 4px; background: var(--bg); padding: 12px; border-radius: 8px; color: var(--accent); margin: 16px 0; border: 1px solid var(--accent); }
-        .btn { border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: bold; }
+        #pairing-code { font-size: 36px; font-weight: 800; letter-spacing: 4px; background: var(--bg); padding: 16px; border-radius: 12px; color: var(--accent); margin: 16px 0; border: 1px solid var(--accent); }
+        .btn { border: none; padding: 16px 24px; border-radius: 12px; cursor: pointer; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 700; transition: all 0.2s; }
         .btn-danger { background: var(--danger); color: white; margin-top: 8px; }
         .btn-secondary { background: var(--border); color: var(--text); margin-top: 8px; }
+        .btn-icon { background: var(--border); color: var(--text); width: 40px; height: 40px; padding: 0; border-radius: 10px; }
         .hidden { display: none !important; }
-        #map-container { height: 250px; width: 100%; border-radius: 12px; margin-bottom: 12px; z-index: 1; border: 1px solid var(--border); background: var(--bg); }
-        .stats-list { text-align: left; font-size: 14px; color: var(--text); max-height: 200px; overflow-y: auto; }
-        .stat-row { display: flex; align-items: center; margin-bottom: 12px; }
-        .stat-name { width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--muted); }
-        .bar-bg { flex-grow: 1; height: 8px; background: var(--bg); border-radius: 4px; margin: 0 12px; overflow: hidden; }
-        .bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
-        .stat-val { font-size: 12px; color: var(--text); font-weight: bold; width: 40px; text-align: right; }
-        #debug-panel { background: #020617; color: #10b981; font-family: monospace; font-size: 12px; padding: 12px; border-radius: 8px; text-align: left; max-height: 150px; overflow-y: auto; width: 100%; box-sizing: border-box; border: 1px solid var(--border); }
+        #map-container { height: 250px; width: 100%; border-radius: 16px; margin-bottom: 12px; z-index: 1; border: 1px solid var(--border); background: var(--bg); }
+        #map-fullscreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; display: none; }
+        .stats-list { text-align: left; font-size: 14px; color: var(--text); max-height: 200px; overflow-y: auto; padding-right: 8px; }
+        .stat-row { display: flex; align-items: center; margin-bottom: 16px; }
+        .stat-name { width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; color: var(--text); font-weight: 500; }
+        .bar-bg { flex-grow: 1; height: 12px; background: var(--bg); border-radius: 6px; margin: 0 12px; overflow: hidden; border: 1px solid var(--border); }
+        .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #8b5cf6); border-radius: 6px; }
+        .stat-val { font-size: 14px; color: var(--muted); font-weight: 700; width: 60px; text-align: right; }
+        #debug-panel { background: #000; color: #10b981; font-family: monospace; font-size: 12px; padding: 12px; border-radius: 8px; text-align: left; max-height: 150px; overflow-y: auto; width: 100%; box-sizing: border-box; border: 1px solid var(--border); }
     </style>
 </head>
 <body>
+    <div id="map-fullscreen"></div>
+
     <!-- Pairing Screen -->
     <div id="pairing-screen" class="card">
         <h1><i class="fa-solid fa-location-crosshairs" style="color: var(--accent);"></i> Find My Kid</h1>
@@ -46,7 +50,10 @@
     <!-- Dashboard Screen -->
     <div id="dashboard-screen" class="hidden" style="width: 100%; max-width: 400px;">
         <div class="card">
-            <h2><i class="fa-solid fa-map-location-dot" style="color: var(--accent);"></i> Live Location</h2>
+            <h2>
+                <span><i class="fa-solid fa-map-location-dot" style="color: var(--accent);"></i> Live Location</span>
+                <button class="btn-icon" onclick="toggleFullscreen()"><i class="fa-solid fa-expand"></i></button>
+            </h2>
             <div id="map-container"></div>
             <div id="loc-display" style="font-size: 14px; color: var(--muted);">Tracking...</div>
         </div>
@@ -82,10 +89,23 @@
             panel.scrollTop = panel.scrollHeight;
         }
 
-        function initMap() {
-            if (!map && document.getElementById('map-container')) {
-                map = L.map('map-container').setView([0, 0], 13);
+        function initMap(elementId) {
+            const container = document.getElementById(elementId);
+            if (!map && container) {
+                map = L.map(elementId).setView([0, 0], 13);
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: 'Find My Kid' }).addTo(map);
+            }
+        }
+
+        function toggleFullscreen() {
+            const fs = document.getElementById('map-fullscreen');
+            if (fs.style.display === 'block') {
+                fs.style.display = 'none';
+            } else {
+                fs.style.display = 'block';
+                // Move map to fullscreen container
+                fs.appendChild(document.getElementById('map-container'));
+                setTimeout(() => map.invalidateSize(), 200);
             }
         }
 
@@ -102,9 +122,9 @@
                 row.className = "stat-row";
                 const width = (u.minutes / maxMin) * 100;
                 row.innerHTML = `
-                    <div class="stat-name">${u.app.split('.').pop()}</div>
+                    <div class="stat-name">${u.app}</div>
                     <div class="bar-bg"><div class="bar-fill" style="width: ${width}%"></div></div>
-                    <div class="stat-val">${u.minutes}m</div>
+                    <div class="stat-val">${u.timeStr}</div>
                 `;
                 container.appendChild(row);
             });
@@ -118,12 +138,10 @@
                 addDebugLog("PeerJS open. ID: " + id);
                 localStorage.setItem("fmk_child_peer_id", id);
                 
-                // ALWAYS generate QR code and text code
                 new QRCode(document.getElementById("qrcode"), { text: id, width: 160, height: 160 });
                 const shortCode = Math.random().toString(36).substring(2, 5).toUpperCase() + "-" + Math.random().toString(36).substring(2, 5).toUpperCase();
                 document.getElementById("pairing-code").innerText = shortCode;
                 if (window.AndroidBridge) window.AndroidBridge.registerCode(shortCode, id);
-                addDebugLog("QR Code & Text Code generated.");
             });
 
             peer.on('connection', function(connection) {
@@ -135,7 +153,7 @@
                     setTimeout(() => {
                         document.getElementById("pairing-screen").classList.add("hidden");
                         document.getElementById("dashboard-screen").classList.remove("hidden");
-                        initMap();
+                        initMap('map-container');
                         setTimeout(() => map.invalidateSize(), 500);
                     }, 1500);
                 });
