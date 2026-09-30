@@ -2,43 +2,58 @@
 import { useEffect, useState, useRef } from "react";
 import Peer from "peerjs";
 import { Html5Qrcode } from "html5-qrcode";
-import { MapPin, Clock, Camera, Link2, Smartphone, Upload, Wifi, WifiOff } from "lucide-react";
+import L from "leaflet";
+import { Camera, Upload, Link2, Wifi, WifiOff, MapPin, Clock, Smartphone } from "lucide-react";
 
 export default function Dashboard() {
   const [connection, setConnection] = useState(null);
-  const [data, setData] = useState(null);
+  const [data, setData] = useState({ lat: 0, lng: 0, usage: "Waiting for data..." });
   const [scanning, setScanning] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const peerRef = useRef(null);
   const scannerRef = useRef(null);
   const fileInputRef = useRef(null);
   const html5QrCodeRef = useRef(null);
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
 
   useEffect(() => {
+    // Initialize Leaflet Map
+    if (!mapRef.current) {
+      mapRef.current = L.map("map-container").setView([0, 0], 2);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(mapRef.current);
+    }
+    
     const p = new Peer();
     peerRef.current = p;
-
-    p.on("connection", (conn) => {
-      setupConnection(conn);
-    });
+    p.on("connection", (conn) => setupConnection(conn));
 
     return () => {
       p.destroy();
-      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        html5QrCodeRef.current.stop().catch(e => console.error(e));
-      }
+      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) html5QrCodeRef.current.stop().catch(e => console.error(e));
+      if (mapRef.current) mapRef.current.remove();
     };
   }, []);
 
   const setupConnection = (conn) => {
     setConnection(conn);
     conn.on("open", () => {
-      // INSTANT SYNC: Demand data the moment we connect
       conn.send({ type: "sync_request" });
     });
     conn.on("data", (payload) => {
-      if (payload.type === "sync_response" || payload.lat) {
+      if (payload.lat) {
         setData(payload);
+        // Update Map Marker
+        if (mapRef.current) {
+          if (!markerRef.current) {
+            markerRef.current = L.marker([payload.lat, payload.lng]).addTo(mapRef.current);
+          } else {
+            markerRef.current.setLatLng([payload.lat, payload.lng]);
+          }
+          mapRef.current.setView([payload.lat, payload.lng], 15);
+        }
       }
     });
     conn.on("close", () => setConnection(null));
@@ -46,7 +61,7 @@ export default function Dashboard() {
 
   const connectToPeer = (peerId) => {
     if (peerRef.current && !connection) {
-      const conn = peerRef.current.connect(peerId);
+      const conn = peerRef.current.connect(peerId, { reliable: true });
       setupConnection(conn);
     }
   };
@@ -58,24 +73,19 @@ export default function Dashboard() {
       const json = await res.json();
       if (json.peerId) connectToPeer(json.peerId);
       else alert("Invalid or expired code.");
-    } catch (e) {
-      alert("Error connecting.");
-    }
+    } catch (e) { alert("Error connecting."); }
   };
 
   useEffect(() => {
     if (scanning) {
       if (!html5QrCodeRef.current) html5QrCodeRef.current = new Html5Qrcode(scannerRef.current.id);
       html5QrCodeRef.current.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 250 },
+        { facingMode: "environment" }, { fps: 10, qrbox: 250 },
         (decodedText) => { connectToPeer(decodedText); html5QrCodeRef.current.stop(); setScanning(false); },
         (err) => {}
       ).catch(err => console.error(err));
     } else {
-      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        html5QrCodeRef.current.stop().catch(e => console.error(e));
-      }
+      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) html5QrCodeRef.current.stop().catch(e => console.error(e));
     }
   }, [scanning]);
 
@@ -87,14 +97,12 @@ export default function Dashboard() {
     try {
       const decodedText = await html5QrCodeRef.current.scanFile(file, false);
       connectToPeer(decodedText);
-    } catch (err) {
-      alert("Could not read QR code from image.");
-    }
+    } catch (err) { alert("Could not read QR code from image."); }
     event.target.value = "";
   };
 
   return (
-    <main style={{ maxWidth: "800px", margin: "0 auto", padding: "20px", fontFamily: 'system-ui, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
+    <main style={{ maxWidth: "800px", margin: "0 auto", padding: "20px", fontFamily: 'system-ui, sans-serif', minHeight: '100vh' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Smartphone size={32} color="#2563eb" />
@@ -127,13 +135,7 @@ export default function Dashboard() {
           <div id="qr-reader" ref={scannerRef} style={{ width: '100%', display: scanning ? 'block' : 'none' }}></div>
 
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-            <input 
-              type="text" 
-              placeholder="e.g. T4J-9X2" 
-              value={manualCode} 
-              onChange={(e) => setManualCode(e.target.value.toUpperCase())}
-              style={{ border: '1px solid #cbd5e1', borderRadius: '8px', padding: '12px', width: '150px', textAlign: 'center', fontSize: '18px', letterSpacing: '2px' }}
-            />
+            <input type="text" placeholder="T4J-9X2" value={manualCode} onChange={(e) => setManualCode(e.target.value.toUpperCase())} style={{ border: '1px solid #cbd5e1', borderRadius: '8px', padding: '12px', width: '150px', textAlign: 'center', fontSize: '18px', letterSpacing: '2px' }} />
             <button onClick={handleManualConnect} style={{ background: '#10b981', color: 'white', border: 'none', padding: '0 24px', borderRadius: '8px', cursor: 'pointer' }}>
               <Link2 size={20} />
             </button>
@@ -146,15 +148,7 @@ export default function Dashboard() {
               <MapPin size={20} color="#ef4444" />
               <h2 style={{ margin: 0, color: "#1e293b", fontSize: '18px' }}>Live Location</h2>
             </div>
-            {data && data.lat ? (
-              <div>
-                <p style={{ color: '#334155', margin: '4px 0' }}>Lat: {data.lat}</p>
-                <p style={{ color: '#334155', margin: '4px 0' }}>Lng: {data.lng}</p>
-                <a href={`https://www.google.com/maps?q=${data.lat},${data.lng}`} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline', marginTop: '8px', display: 'inline-block' }}>
-                  View on Google Maps
-                </a>
-              </div>
-            ) : <p style={{ color: '#64748b' }}>Waiting for location...</p>}
+            <div id="map-container" style={{ height: '300px', borderRadius: '8px', zIndex: 0 }}></div>
           </div>
 
           <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
@@ -162,9 +156,7 @@ export default function Dashboard() {
               <Clock size={20} color="#f59e0b" />
               <h2 style={{ margin: 0, color: "#1e293b", fontSize: '18px' }}>App Usage</h2>
             </div>
-            {data && data.usage ? (
-              <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: "14px", color: '#334155' }}>{data.usage}</pre>
-            ) : <p style={{ color: '#64748b' }}>No usage data reported yet.</p>}
+            {data.usage ? <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: "14px", color: '#334155' }}>{data.usage}</pre> : <p style={{ color: '#64748b' }}>No usage data reported yet.</p>}
           </div>
         </div>
       )}

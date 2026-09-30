@@ -12,12 +12,10 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
-import org.json.JSONObject;
-
 public class MainActivity extends Activity {
     private static final int REQ_LOCATION = 1001;
     private static WebView webView;
-    private static String latestData = "{\"lat\":0,\"lng\":0,\"usage\":\"Loading...\"}";
+    private static String latestData = "{\"lat\":0.0,\"lng\":0.0,\"usage\":\"Acquiring...\"}";
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -32,9 +30,13 @@ public class MainActivity extends Activity {
         
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
+        webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
         webView.addJavascriptInterface(new WebAppInterface(this), "AndroidBridge");
         webView.setWebViewClient(new WebViewClient());
         webView.loadUrl("file:///android_asset/findmykid.html");
+        
+        // Prevent app from destroying WebView immediately when minimized
+        webView.setKeepScreenOn(true);
     }
 
     public static void pushDataToWebView(String jsonData) {
@@ -50,17 +52,13 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void getLatestData() {
-            // Push latest static data to JS
             activity.runOnUiThread(() -> webView.evaluateJavascript("updateChildData('" + latestData.replace("'", "\\'") + "')", null));
         }
 
         @JavascriptInterface
         public boolean verifyPin(String pin) {
             AppLockManager lock = new AppLockManager(activity);
-            if (!lock.isPinSet()) {
-                // If no pin set, default to 0000 for prototype
-                return pin.equals("0000");
-            }
+            if (!lock.isPinSet()) { return pin.equals("0000"); }
             return lock.verifyPin(pin);
         }
 

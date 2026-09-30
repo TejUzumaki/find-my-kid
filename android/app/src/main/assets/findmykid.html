@@ -3,109 +3,162 @@
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Find My Kid</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #1e293b; text-align: center; padding: 20px; box-sizing: border-box; }
-        .card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); width: 100%; max-width: 400px; margin-bottom: 16px; }
+        body { font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #1e293b; text-align: center; padding: 20px; box-sizing: border-box; }
+        .card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); width: 100%; max-width: 400px; margin-bottom: 16px; box-sizing: border-box; }
         #qrcode img, #qrcode canvas { border: 8px solid white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         h1 { font-size: 24px; margin-bottom: 8px; color: #1e293b; }
         h2 { font-size: 18px; margin: 0 0 12px 0; color: #1e293b; display: flex; align-items: center; justify-content: center; gap: 8px; }
         p { color: #64748b; font-size: 14px; margin-bottom: 16px; }
         #status { font-weight: bold; color: #10b981; display: none; align-items: center; gap: 8px; margin-top: 16px; }
         #pairing-code { font-size: 32px; font-weight: bold; letter-spacing: 4px; background: #eff6ff; padding: 12px; border-radius: 8px; color: #2563eb; margin: 16px 0; }
-        .btn { border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; display: inline-flex; align-items: center; gap: 8px; width: 100%; justify-content: center; box-sizing: border-box; }
+        .btn { border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; }
         .btn-danger { background: #ef4444; color: white; margin-top: 8px; }
         .hidden { display: none !important; }
-        .stats-list { text-align: left; font-size: 14px; color: #334155; max-height: 200px; overflow-y: auto; }
+        #map-container { height: 250px; width: 100%; border-radius: 12px; margin-bottom: 12px; z-index: 1; }
+        .stats-list { text-align: left; font-size: 14px; color: #334155; max-height: 150px; overflow-y: auto; background: #f1f5f9; padding: 12px; border-radius: 8px; }
+        #debug-panel { background: #1e293b; color: #10b981; font-family: monospace; font-size: 12px; padding: 12px; border-radius: 8px; text-align: left; max-height: 150px; overflow-y: auto; width: 100%; box-sizing: border-box; }
     </style>
 </head>
 <body>
     <!-- Pairing Screen -->
     <div id="pairing-screen" class="card">
-        <h1>Find My Kid</h1>
+        <h1><i class="fa-solid fa-location-crosshairs"></i> Find My Kid</h1>
         <p>Link this device to your parent's dashboard.</p>
-        <div id="qrcode"></div>
+        <div id="qrcode" style="display: flex; justify-content: center;"></div>
         <div id="pairing-code">...</div>
         <p>Or enter this code manually</p>
-        <div id="status">🔗 Connected!</div>
+        <div id="status"><i class="fa-solid fa-link"></i> Connected!</div>
     </div>
 
     <!-- Dashboard Screen (Hidden until connected) -->
     <div id="dashboard-screen" class="hidden" style="width: 100%; max-width: 400px;">
         <div class="card">
-            <h2>📍 Current Location</h2>
+            <h2><i class="fa-solid fa-map-location-dot" style="color: #ef4444;"></i> Live Location</h2>
+            <div id="map-container"></div>
             <div id="loc-display" style="font-size: 14px; color: #64748b;">Tracking...</div>
         </div>
         <div class="card">
-            <h2>⏰ App Usage</h2>
+            <h2><i class="fa-solid fa-chart-line" style="color: #f59e0b;"></i> App Usage</h2>
             <div id="usage-display" class="stats-list">Loading stats...</div>
         </div>
         <div class="card">
-            <h2>⚙️ Settings</h2>
-            <button class="btn btn-danger" onclick="attemptStopTracking()">Stop Tracking</button>
+            <h2><i class="fa-solid fa-gear" style="color: #64748b;"></i> Settings</h2>
+            <button class="btn btn-danger" onclick="attemptStopTracking()"><i class="fa-solid fa-stop"></i> Stop Tracking</button>
+            <button class="btn" style="background: #1e293b; color: white; margin-top: 8px;" onclick="toggleDebug()"><i class="fa-solid fa-bug"></i> Toggle Debug</button>
+            <div id="debug-panel" class="hidden" style="margin-top: 12px;"></div>
         </div>
     </div>
 
     <script>
-        const peer = new Peer();
+        let peer = null;
         let conn = null;
+        let map = null;
+        let marker = null;
         let latestData = { lat: 0, lng: 0, usage: "Waiting for data..." };
+
+        // Global Error Catcher for Debug Panel
+        window.onerror = function(msg, url, line, col, error) {
+            addDebugLog("JS ERROR: " + msg + " (line " + line + ")");
+            return false;
+        };
+
+        function addDebugLog(msg) {
+            const panel = document.getElementById("debug-panel");
+            const time = new Date().toLocaleTimeString();
+            panel.innerHTML += `[${time}] ${msg}<br>`;
+            panel.scrollTop = panel.scrollHeight;
+        }
+
+        function initMap() {
+            if (!map && document.getElementById('map-container')) {
+                map = L.map('map-container').setView([0, 0], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: 'Find My Kid'
+                }).addTo(map);
+            }
+        }
 
         function generateCode() {
             return Math.random().toString(36).substring(2, 5).toUpperCase() + "-" + Math.random().toString(36).substring(2, 5).toUpperCase();
         }
-        const shortCode = generateCode();
-        document.getElementById("pairing-code").innerText = shortCode;
 
-        peer.on('open', function(id) {
-            new QRCode(document.getElementById("qrcode"), { text: id, width: 160, height: 160 });
-            
-            // Send mapping to Vercel API
-            fetch("https://fmkxtej.vercel.app/api/peer-map", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ shortCode: shortCode, peerId: id })
-            });
-        });
+        function initPeer() {
+            addDebugLog("Initializing PeerJS...");
+            peer = new Peer();
 
-        peer.on('connection', function(connection) {
-            conn = connection;
-            conn.on('open', () => {
-                document.getElementById("status").style.display = "flex";
-                setTimeout(() => {
-                    document.getElementById("pairing-screen").classList.add("hidden");
-                    document.getElementById("dashboard-screen").classList.remove("hidden");
-                }, 1500);
+            peer.on('open', function(id) {
+                addDebugLog("PeerJS open. ID: " + id);
+                new QRCode(document.getElementById("qrcode"), { text: id, width: 160, height: 160 });
+                
+                const shortCode = generateCode();
+                document.getElementById("pairing-code").innerText = shortCode;
+
+                fetch("https://fmkxtej.vercel.app/api/peer-map", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ shortCode: shortCode, peerId: id })
+                }).then(r => r.json()).then(d => addDebugLog("Vercel API mapped code: " + d.success)).catch(e => addDebugLog("Vercel API Error: " + e));
             });
 
-            conn.on('data', function(msg) {
-                if (msg.type === 'sync_request') {
-                    // Parent asked for data, send it instantly
-                    fetchLatestDataFromAndroid();
-                }
-            });
-        });
+            peer.on('connection', function(connection) {
+                addDebugLog("Incoming parent connection...");
+                conn = connection;
+                conn.on('open', () => {
+                    addDebugLog("Connection established!");
+                    document.getElementById("status").style.display = "flex";
+                    setTimeout(() => {
+                        document.getElementById("pairing-screen").classList.add("hidden");
+                        document.getElementById("dashboard-screen").classList.remove("hidden");
+                        initMap();
+                        setTimeout(() => map.invalidateSize(), 500);
+                    }, 1500);
+                });
 
-        function updateDashboard(data) {
-            document.getElementById("loc-display").innerText = `Lat: ${data.lat}, Lng: ${data.lng}`;
-            document.getElementById("usage-display").innerText = data.usage;
+                conn.on('data', function(msg) {
+                    if (msg.type === 'sync_request') {
+                        addDebugLog("Parent requested sync. Pushing data...");
+                        if (window.AndroidBridge) window.AndroidBridge.getLatestData();
+                    }
+                });
+
+                conn.on('error', (err) => addDebugLog("Conn Error: " + err));
+                conn.on('close', () => addDebugLog("Connection closed."));
+            });
+
+            peer.on('error', (err) => addDebugLog("Peer Error: " + err.type + " - " + err));
         }
 
-        // Called by Android Java
         window.updateChildData = function(jsonStr) {
-            latestData = JSON.parse(jsonStr);
-            updateDashboard(latestData);
-            if (conn && conn.open) {
-                conn.send({ type: "sync_response", ...latestData });
+            try {
+                latestData = JSON.parse(jsonStr);
+                addDebugLog("Data received from Android: " + jsonStr);
+                
+                document.getElementById("loc-display").innerText = `Lat: ${latestData.lat}, Lng: ${latestData.lng}`;
+                document.getElementById("usage-display").innerText = latestData.usage || "No usage data";
+                
+                if (map && latestData.lat !== 0) {
+                    if (!marker) {
+                        marker = L.marker([latestData.lat, latestData.lng]).addTo(map);
+                    } else {
+                        marker.setLatLng([latestData.lat, latestData.lng]);
+                    }
+                    map.setView([latestData.lat, latestData.lng], 16);
+                }
+
+                if (conn && conn.open) {
+                    conn.send({ type: "sync_response", ...latestData });
+                    addDebugLog("Data sent to parent.");
+                }
+            } catch (e) {
+                addDebugLog("Parse Error in updateChildData: " + e);
             }
         };
-
-        function fetchLatestDataFromAndroid() {
-            if (window.AndroidBridge) {
-                window.AndroidBridge.getLatestData();
-            }
-        }
 
         function attemptStopTracking() {
             let pin = prompt("Enter Parental PIN to stop tracking:");
@@ -117,6 +170,13 @@
                 }
             }
         }
+
+        function toggleDebug() {
+            document.getElementById("debug-panel").classList.toggle("hidden");
+        }
+
+        // Start everything
+        initPeer();
     </script>
 </body>
 </html>
