@@ -2,7 +2,6 @@
 import { useEffect, useState, useRef } from "react";
 import Peer from "peerjs";
 import { Html5Qrcode } from "html5-qrcode";
-import L from "leaflet";
 import { Camera, Upload, Link2, Wifi, WifiOff, MapPin, Clock, Smartphone } from "lucide-react";
 
 export default function Dashboard() {
@@ -18,19 +17,30 @@ export default function Dashboard() {
   const markerRef = useRef(null);
 
   useEffect(() => {
-    // Initialize Leaflet Map
-    if (!mapRef.current) {
-      mapRef.current = L.map("map-container").setView([0, 0], 2);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(mapRef.current);
-    }
-    
+    // Initialize Leaflet Map (safely checking for window.L)
+    const initMap = () => {
+      if (typeof window !== "undefined" && window.L && !mapRef.current) {
+        mapRef.current = window.L.map("map-container").setView([0, 0], 2);
+        window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(mapRef.current);
+      }
+    };
+
+    // Wait a moment for the script to load if it hasn't already
+    const mapTimer = setInterval(() => {
+      if (window.L) {
+        initMap();
+        clearInterval(mapTimer);
+      }
+    }, 500);
+
     const p = new Peer();
     peerRef.current = p;
     p.on("connection", (conn) => setupConnection(conn));
 
     return () => {
+      clearInterval(mapTimer);
       p.destroy();
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) html5QrCodeRef.current.stop().catch(e => console.error(e));
       if (mapRef.current) mapRef.current.remove();
@@ -46,9 +56,9 @@ export default function Dashboard() {
       if (payload.lat) {
         setData(payload);
         // Update Map Marker
-        if (mapRef.current) {
+        if (mapRef.current && window.L) {
           if (!markerRef.current) {
-            markerRef.current = L.marker([payload.lat, payload.lng]).addTo(mapRef.current);
+            markerRef.current = window.L.marker([payload.lat, payload.lng]).addTo(mapRef.current);
           } else {
             markerRef.current.setLatLng([payload.lat, payload.lng]);
           }
