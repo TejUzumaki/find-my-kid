@@ -12,6 +12,11 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+
 public class MainActivity extends Activity {
     private static final int REQ_LOCATION = 1001;
     private static WebView webView;
@@ -21,7 +26,6 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         requestEssentialPermissions();
         
-        // Setup WebView immediately so UI loads, but wait for permission to start service
         webView = new WebView(this);
         setContentView(webView);
         
@@ -43,7 +47,9 @@ public class MainActivity extends Activity {
     public static void pushDataToWebView(String jsonData) {
         latestData = jsonData;
         if (webView != null) {
-            webView.post(() -> webView.evaluateJavascript("updateChildData('" + jsonData.replace("'", "\\'") + "')", null));
+            // Escape newlines so it doesn't break JS syntax
+            String safeJson = jsonData.replace("\n", "\\n").replace("\r", "\\r");
+            webView.post(() -> webView.evaluateJavascript("updateChildData(" + safeJson + ")", null));
         }
     }
 
@@ -53,7 +59,8 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void getLatestData() {
-            activity.runOnUiThread(() -> webView.evaluateJavascript("updateChildData('" + latestData.replace("'", "\\'") + "')", null));
+            String safeJson = latestData.replace("\n", "\\n").replace("\r", "\\r");
+            activity.runOnUiThread(() -> webView.evaluateJavascript("updateChildData(" + safeJson + ")", null));
         }
 
         @JavascriptInterface
@@ -68,13 +75,36 @@ public class MainActivity extends Activity {
             activity.stopService(new Intent(activity, TrackingService.class));
             activity.finish();
         }
+
+        // Native HTTP call to Vercel to bypass WebView CORS
+        @JavascriptInterface
+        public void registerCode(String code, String peerId) {
+            new Thread(() -> {
+                try {
+                    URL url = new URL("https://fmkxtej.vercel.app/api/peer-map");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                    conn.setDoOutput(true);
+                    String jsonInputString = String.format("{\"shortCode\":\"%s\",\"peerId\":\"%s\"}", code, peerId);
+                    try(OutputStream os = conn.getOutputStream()) {
+                        byte[] input = jsonInputString.getBytes(StandardCharsets.UTF_8);
+                        os.write(input, 0, input.length);
+                    }
+                    int responseCode = conn.getResponseCode();
+                    activity.runOnUiThread(() -> webView.evaluateJavascript("addDebugLog('Vercel API registered: " + responseCode + "')", null));
+                    conn.disconnect();
+                } catch (Exception e) {
+                    activity.runOnUiThread(() -> webView.evaluateJavascript("addDebugLog('Vercel Error: " + e.getMessage().replace("'", "\\'") + "')", null));
+                }
+            }).start();
+        }
     }
 
     private void requestEssentialPermissions() {
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_LOCATION);
         } else {
-            // Permission already granted, start service safely
             startTrackingService();
         }
         if (!hasUsageStatsPermission()) {
@@ -88,11 +118,9 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQ_LOCATION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // User just granted permission! Now we can safely start the FGS.
                 startTrackingService();
-                Toast.makeText(this, "Tracking Started", Toast.LENGTH_SHORT).show();
             } else {
-                Toast.makeText(this, "Location permission is required for tracking", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Location permission is required", Toast.LENGTH_LONG).show();
             }
         }
     }

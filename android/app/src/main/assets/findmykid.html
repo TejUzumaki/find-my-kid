@@ -21,7 +21,7 @@
         .btn-danger { background: #ef4444; color: white; margin-top: 8px; }
         .hidden { display: none !important; }
         #map-container { height: 250px; width: 100%; border-radius: 12px; margin-bottom: 12px; z-index: 1; }
-        .stats-list { text-align: left; font-size: 14px; color: #334155; max-height: 150px; overflow-y: auto; background: #f1f5f9; padding: 12px; border-radius: 8px; }
+        .stats-list { text-align: left; font-size: 14px; color: #334155; max-height: 150px; overflow-y: auto; background: #f1f5f9; padding: 12px; border-radius: 8px; white-space: pre-wrap; }
         #debug-panel { background: #1e293b; color: #10b981; font-family: monospace; font-size: 12px; padding: 12px; border-radius: 8px; text-align: left; max-height: 150px; overflow-y: auto; width: 100%; box-sizing: border-box; }
     </style>
 </head>
@@ -62,7 +62,6 @@
         let marker = null;
         let latestData = { lat: 0, lng: 0, usage: "Waiting for data..." };
 
-        // Global Error Catcher for Debug Panel
         window.onerror = function(msg, url, line, col, error) {
             addDebugLog("JS ERROR: " + msg + " (line " + line + ")");
             return false;
@@ -78,9 +77,7 @@
         function initMap() {
             if (!map && document.getElementById('map-container')) {
                 map = L.map('map-container').setView([0, 0], 13);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: 'Find My Kid'
-                }).addTo(map);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'Find My Kid' }).addTo(map);
             }
         }
 
@@ -99,11 +96,11 @@
                 const shortCode = generateCode();
                 document.getElementById("pairing-code").innerText = shortCode;
 
-                fetch("https://fmkxtej.vercel.app/api/peer-map", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ shortCode: shortCode, peerId: id })
-                }).then(r => r.json()).then(d => addDebugLog("Vercel API mapped code: " + d.success)).catch(e => addDebugLog("Vercel API Error: " + e));
+                // Use Native Java HTTP to bypass CORS
+                if (window.AndroidBridge) {
+                    window.AndroidBridge.registerCode(shortCode, id);
+                    addDebugLog("Requested Java to map code...");
+                }
             });
 
             peer.on('connection', function(connection) {
@@ -134,10 +131,11 @@
             peer.on('error', (err) => addDebugLog("Peer Error: " + err.type + " - " + err));
         }
 
-        window.updateChildData = function(jsonStr) {
+        // Now receives a parsed JS object directly from Java
+        window.updateChildData = function(dataObj) {
             try {
-                latestData = JSON.parse(jsonStr);
-                addDebugLog("Data received from Android: " + jsonStr);
+                latestData = dataObj;
+                addDebugLog("Data received from Android: " + JSON.stringify(dataObj));
                 
                 document.getElementById("loc-display").innerText = `Lat: ${latestData.lat}, Lng: ${latestData.lng}`;
                 document.getElementById("usage-display").innerText = latestData.usage || "No usage data";
@@ -175,7 +173,6 @@
             document.getElementById("debug-panel").classList.toggle("hidden");
         }
 
-        // Start everything
         initPeer();
     </script>
 </body>
