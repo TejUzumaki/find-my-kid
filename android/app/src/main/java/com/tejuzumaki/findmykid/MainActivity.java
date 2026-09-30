@@ -21,10 +21,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         requestEssentialPermissions();
         
-        Intent intent = new Intent(this, TrackingService.class);
-        if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent);
-        else startService(intent);
-
+        // Setup WebView immediately so UI loads, but wait for permission to start service
         webView = new WebView(this);
         setContentView(webView);
         
@@ -34,9 +31,13 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new WebAppInterface(this), "AndroidBridge");
         webView.setWebViewClient(new WebViewClient());
         webView.loadUrl("file:///android_asset/findmykid.html");
-        
-        // Prevent app from destroying WebView immediately when minimized
         webView.setKeepScreenOn(true);
+    }
+
+    private void startTrackingService() {
+        Intent intent = new Intent(this, TrackingService.class);
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent);
+        else startService(intent);
     }
 
     public static void pushDataToWebView(String jsonData) {
@@ -72,10 +73,27 @@ public class MainActivity extends Activity {
     private void requestEssentialPermissions() {
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_LOCATION);
+        } else {
+            // Permission already granted, start service safely
+            startTrackingService();
         }
         if (!hasUsageStatsPermission()) {
             Toast.makeText(this, "Please grant Usage Access for full tracking", Toast.LENGTH_LONG).show();
             startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_LOCATION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // User just granted permission! Now we can safely start the FGS.
+                startTrackingService();
+                Toast.makeText(this, "Tracking Started", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Location permission is required for tracking", Toast.LENGTH_LONG).show();
+            }
         }
     }
 
