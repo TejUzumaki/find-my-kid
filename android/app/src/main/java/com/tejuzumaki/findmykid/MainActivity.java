@@ -7,17 +7,20 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import org.json.JSONObject;
+
 public class MainActivity extends Activity {
     private static final int REQ_LOCATION = 1001;
     private static WebView webView;
+    private static String latestData = "{\"lat\":0,\"lng\":0,\"usage\":\"Loading...\"}";
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
         requestEssentialPermissions();
         
         Intent intent = new Intent(this, TrackingService.class);
@@ -27,18 +30,44 @@ public class MainActivity extends Activity {
         webView = new WebView(this);
         setContentView(webView);
         
-        // THE FIX: Enable JavaScript AND DOM Storage so QR code libraries work
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
+        webView.addJavascriptInterface(new WebAppInterface(this), "AndroidBridge");
         webView.setWebViewClient(new WebViewClient());
         webView.loadUrl("file:///android_asset/findmykid.html");
     }
 
     public static void pushDataToWebView(String jsonData) {
+        latestData = jsonData;
         if (webView != null) {
-            webView.post(() -> {
-                webView.evaluateJavascript("sendDataToParent(" + jsonData + ")", null);
-            });
+            webView.post(() -> webView.evaluateJavascript("updateChildData('" + jsonData.replace("'", "\\'") + "')", null));
+        }
+    }
+
+    public static class WebAppInterface {
+        private final Activity activity;
+        WebAppInterface(Activity a) { activity = a; }
+
+        @JavascriptInterface
+        public void getLatestData() {
+            // Push latest static data to JS
+            activity.runOnUiThread(() -> webView.evaluateJavascript("updateChildData('" + latestData.replace("'", "\\'") + "')", null));
+        }
+
+        @JavascriptInterface
+        public boolean verifyPin(String pin) {
+            AppLockManager lock = new AppLockManager(activity);
+            if (!lock.isPinSet()) {
+                // If no pin set, default to 0000 for prototype
+                return pin.equals("0000");
+            }
+            return lock.verifyPin(pin);
+        }
+
+        @JavascriptInterface
+        public void stopTracking() {
+            activity.stopService(new Intent(activity, TrackingService.class));
+            activity.finish();
         }
     }
 
@@ -58,8 +87,6 @@ public class MainActivity extends Activity {
             long time = System.currentTimeMillis();
             java.util.List<android.app.usage.UsageStats> stats = usm.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_DAILY, time - 1000, time);
             return stats != null && !stats.isEmpty();
-        } catch (Exception e) {
-            return false;
-        }
+        } catch (Exception e) { return false; }
     }
 }

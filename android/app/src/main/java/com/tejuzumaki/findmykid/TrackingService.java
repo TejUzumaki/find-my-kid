@@ -28,7 +28,8 @@ public class TrackingService extends Service implements LocationListener {
         usageTracker = new UsageTracker(this);
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         try {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000, 0, this);
+            // 120000ms = 2 minutes
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 120000, 0, this);
         } catch (SecurityException e) {
             Log.e("FMK_Tracking", "Missing location permission", e);
             stopSelf();
@@ -36,9 +37,7 @@ public class TrackingService extends Service implements LocationListener {
     }
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        return START_STICKY;
-    }
+    public int onStartCommand(Intent intent, int flags, int startId) { return START_STICKY; }
 
     @Override
     public void onLocationChanged(Location location) {
@@ -57,8 +56,7 @@ public class TrackingService extends Service implements LocationListener {
                 .setSmallIcon(android.R.drawable.ic_menu_mylocation)
                 .setContentTitle("Find My Kid is active")
                 .setContentText("Location tracking is running.")
-                .setOngoing(true)
-                .build();
+                .setOngoing(true).build();
     }
 
     private void createChannel() {

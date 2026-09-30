@@ -6,44 +6,117 @@
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; color: #1e293b; text-align: center; }
-        #qrcode { margin: 20px 0; }
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #1e293b; text-align: center; padding: 20px; box-sizing: border-box; }
+        .card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); width: 100%; max-width: 400px; margin-bottom: 16px; }
         #qrcode img, #qrcode canvas { border: 8px solid white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { font-size: 24px; margin-bottom: 8px; }
-        p { color: #64748b; max-width: 300px; }
-        #status { margin-top: 10px; font-weight: bold; color: #2563eb; }
+        h1 { font-size: 24px; margin-bottom: 8px; color: #1e293b; }
+        h2 { font-size: 18px; margin: 0 0 12px 0; color: #1e293b; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        p { color: #64748b; font-size: 14px; margin-bottom: 16px; }
+        #status { font-weight: bold; color: #10b981; display: none; align-items: center; gap: 8px; margin-top: 16px; }
+        #pairing-code { font-size: 32px; font-weight: bold; letter-spacing: 4px; background: #eff6ff; padding: 12px; border-radius: 8px; color: #2563eb; margin: 16px 0; }
+        .btn { border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; display: inline-flex; align-items: center; gap: 8px; width: 100%; justify-content: center; box-sizing: border-box; }
+        .btn-danger { background: #ef4444; color: white; margin-top: 8px; }
+        .hidden { display: none !important; }
+        .stats-list { text-align: left; font-size: 14px; color: #334155; max-height: 200px; overflow-y: auto; }
     </style>
 </head>
 <body>
-    <h1>Find My Kid</h1>
-    <p>Scan this QR code with the Parent Dashboard to link devices.</p>
-    <div id="qrcode"></div>
-    <div id="status">Waiting for parent...</div>
+    <!-- Pairing Screen -->
+    <div id="pairing-screen" class="card">
+        <h1>Find My Kid</h1>
+        <p>Link this device to your parent's dashboard.</p>
+        <div id="qrcode"></div>
+        <div id="pairing-code">...</div>
+        <p>Or enter this code manually</p>
+        <div id="status">🔗 Connected!</div>
+    </div>
+
+    <!-- Dashboard Screen (Hidden until connected) -->
+    <div id="dashboard-screen" class="hidden" style="width: 100%; max-width: 400px;">
+        <div class="card">
+            <h2>📍 Current Location</h2>
+            <div id="loc-display" style="font-size: 14px; color: #64748b;">Tracking...</div>
+        </div>
+        <div class="card">
+            <h2>⏰ App Usage</h2>
+            <div id="usage-display" class="stats-list">Loading stats...</div>
+        </div>
+        <div class="card">
+            <h2>⚙️ Settings</h2>
+            <button class="btn btn-danger" onclick="attemptStopTracking()">Stop Tracking</button>
+        </div>
+    </div>
 
     <script>
         const peer = new Peer();
         let conn = null;
-        
-        window.sendDataToParent = function(data) {
-            if (conn && conn.open) {
-                conn.send(data);
-            }
-        };
+        let latestData = { lat: 0, lng: 0, usage: "Waiting for data..." };
+
+        function generateCode() {
+            return Math.random().toString(36).substring(2, 5).toUpperCase() + "-" + Math.random().toString(36).substring(2, 5).toUpperCase();
+        }
+        const shortCode = generateCode();
+        document.getElementById("pairing-code").innerText = shortCode;
 
         peer.on('open', function(id) {
-            // Using qrcodejs library now that DOM storage is enabled
-            new QRCode(document.getElementById("qrcode"), {
-                text: id,
-                width: 200,
-                height: 200
+            new QRCode(document.getElementById("qrcode"), { text: id, width: 160, height: 160 });
+            
+            // Send mapping to Vercel API
+            fetch("https://fmkxtej.vercel.app/api/peer-map", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ shortCode: shortCode, peerId: id })
             });
         });
 
         peer.on('connection', function(connection) {
             conn = connection;
-            document.getElementById("status").innerText = "Connected to Parent!";
-            document.getElementById("qrcode").style.display = 'none';
+            conn.on('open', () => {
+                document.getElementById("status").style.display = "flex";
+                setTimeout(() => {
+                    document.getElementById("pairing-screen").classList.add("hidden");
+                    document.getElementById("dashboard-screen").classList.remove("hidden");
+                }, 1500);
+            });
+
+            conn.on('data', function(msg) {
+                if (msg.type === 'sync_request') {
+                    // Parent asked for data, send it instantly
+                    fetchLatestDataFromAndroid();
+                }
+            });
         });
+
+        function updateDashboard(data) {
+            document.getElementById("loc-display").innerText = `Lat: ${data.lat}, Lng: ${data.lng}`;
+            document.getElementById("usage-display").innerText = data.usage;
+        }
+
+        // Called by Android Java
+        window.updateChildData = function(jsonStr) {
+            latestData = JSON.parse(jsonStr);
+            updateDashboard(latestData);
+            if (conn && conn.open) {
+                conn.send({ type: "sync_response", ...latestData });
+            }
+        };
+
+        function fetchLatestDataFromAndroid() {
+            if (window.AndroidBridge) {
+                window.AndroidBridge.getLatestData();
+            }
+        }
+
+        function attemptStopTracking() {
+            let pin = prompt("Enter Parental PIN to stop tracking:");
+            if (window.AndroidBridge && pin) {
+                if (window.AndroidBridge.verifyPin(pin)) {
+                    window.AndroidBridge.stopTracking();
+                } else {
+                    alert("Incorrect PIN");
+                }
+            }
+        }
     </script>
 </body>
 </html>
