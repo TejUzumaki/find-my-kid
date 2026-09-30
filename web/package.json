@@ -13,6 +13,7 @@
     "react-dom": "^18",
     "peerjs": "^1.5.2",
     "html5-qrcode": "^2.3.8",
-    "lucide-react": "^0.395.0"
+    "lucide-react": "^0.395.0",
+    "recharts": "^2.12.7"
   }
 }
